@@ -280,8 +280,6 @@ Resources:
             find /var/www -type f -exec chmod 0664 {} \;
 
             # Download wordpress package and extract
-            #wget https://wordpress.org/latest.tar.gz
-            #tar -xzf latest.tar.gz
             wget https://ja.wordpress.org/latest-ja.tar.gz
             tar -xzvf latest-ja.tar.gz
 
