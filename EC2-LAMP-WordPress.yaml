@@ -71,6 +71,7 @@ Mappings:
 # ------------------------------------------------------------#
 Conditions:
   IsCPUArch: !Equals [!Ref CPUArch, "x86"]
+  IsUSERdata: !Equals [!Ref USERdataParam, "Yes"]
 # ------------------------------------------------------------#
 # Input Parameters
 # ------------------------------------------------------------#
@@ -94,20 +95,27 @@ Parameters:
     Type: String
     Default: x86
     AllowedValues:
-    - x86
-    - Arm
+      - x86
+      - Arm
   InstanceSize:
     Description: Select instance Size(nano < micro < small)
     Type: String
     Default: nano
     AllowedValues:
-    - nano
-    - micro
-    - small
+      - nano
+      - micro
+      - small
   CidrBlock:
     Description: Please type the CidrBlock.
     Type: String
     Default: 192.168.0.0/16
+  USERdataParam:
+    Description: Choose to install LAMP,WordPress
+    Type: String
+    Default: "Yes"
+    AllowedValues:
+      - "Yes"
+      - "no"
   DbRootPassword:
     #NoEcho: true
     Description: MariaDB Root Password
@@ -250,8 +258,11 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${SystemName}-WebServer
-      UserData: !Base64
-          Fn::Sub: |
+      UserData:
+        Fn::If:
+          - IsUSERdata
+          - Fn::Base64: |-
+            #Fn::Sub: |
             #! /bin/bash
             #Change these values and keep in safe place
             db_root_password=${DbRootPassword}
@@ -320,7 +331,6 @@ Resources:
 
             # enable .htaccess files in Apache config using sed command
             sed -i '/<Directory "\/var\/www\/html">/,/<\/Directory>/ s/AllowOverride None/AllowOverride all/' /etc/httpd/conf/httpd.conf
-
 
 # ------------------------------------------------------------#
 # Output Parameters
