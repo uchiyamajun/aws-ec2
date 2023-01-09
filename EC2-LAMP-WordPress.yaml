@@ -24,6 +24,7 @@ Metadata:
           - InstanceSize
           - CPUArch
           - CidrBlock
+          - USERdataParam
      -
       Label:
           default: "Wordpress Parameters"
@@ -45,6 +46,8 @@ Metadata:
         default: "EC2 Instancesize"
       CidrBlock:
         default: "EC2 CidrBlock"
+      USERdataParam:
+        default: "EC2 Userdata"
       DbRootPassword:
         default: "WordPress DbRootPassword"
       WPDbName:
