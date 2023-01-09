@@ -74,7 +74,6 @@ Mappings:
 # ------------------------------------------------------------#
 Conditions:
   IsCPUArch: !Equals [!Ref CPUArch, "x86"]
-  IsUSERdata: !Equals [!Ref USERdataParam, "Yes"]
 # ------------------------------------------------------------#
 # Input Parameters
 # ------------------------------------------------------------#
@@ -115,10 +114,10 @@ Parameters:
   USERdataParam:
     Description: Choose to install LAMP,WordPress
     Type: String
-    Default: "Yes"
+    Default: "install"
     AllowedValues:
-      - "Yes"
-      - "no"
+      - "install"
+      - "notinstall"
   DbRootPassword:
     #NoEcho: true
     Description: MariaDB Root Password
@@ -261,13 +260,11 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${SystemName}-WebServer
-      UserData:
-        Fn::If:
-          - IsUSERdata
-          - Fn::Base64:
-            Fn::Sub: |
+      UserData: !Base64
+          Fn::Sub: |
             #! /bin/bash
-            #Change these values and keep in safe place
+            if [ ${USERdataParam} = notinstall ] ; then exit 0; fi
+            # store in a variable
             db_root_password=${DbRootPassword}
             db_name=${WPDbName}
             db_username=${WPDbUser}
