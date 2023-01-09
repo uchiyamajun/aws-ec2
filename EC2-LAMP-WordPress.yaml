@@ -1,0 +1,365 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description:
+  Create EC2 LAMP Wordpress
+
+# ------------------------------------------------------------#
+# Parameter Group
+# ------------------------------------------------------------#
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+     -
+      Label:
+          default: "SystemName"
+      Parameters:
+          - SystemName
+     -
+      Label:
+          default: "EC2Instance Configuration"
+      Parameters:
+          - KeyName
+          - Ec2ImageId
+          - Ec2ImageIdArm64
+          - InstanceSize
+          - CPUArch
+          - CidrBlock
+     -
+      Label:
+          default: "Wordpress Parameters"
+      Parameters:
+          - DbRootPassword
+          - WPDbName
+          - WPDbUser
+          - WPDbPassword
+    ParameterLabels:
+      KeyName:
+        default: "KeyPairName"
+      Ec2ImageId:
+        default: "EC2 AMI"
+      Ec2ImageIdArm64:
+        default: "EC2 AMI(Arm)"
+      CPUArch:
+        default: "EC2 CPU Architecture type"
+      InstanceSize:
+        default: "EC2 Instancesize"
+      CidrBlock:
+        default: "EC2 CidrBlock"
+      DbRootPassword:
+        default: "WordPress DbRootPassword"
+      WPDbName:
+        default: "WordPress DBName"
+      WPDbUser:
+        default: "WordPress DbUser"
+      WPDbPassword:
+        default: "WordPress DbPassword"
+# ------------------------------------------------------------#
+# Mappings Parameters
+# ------------------------------------------------------------#
+Mappings:
+  SizeMap:
+    x86:
+      nano: t3a.nano
+      micro: t3a.micro
+      small: t3a.small
+    Arm:
+      nano: t4g.nano
+      micro: t4g.micro
+      small: t4g.small
+# ------------------------------------------------------------#
+# Condition
+# ------------------------------------------------------------#
+Conditions:
+  IsCPUArch: !Equals [!Ref CPUArch, "x86"]
+# ------------------------------------------------------------#
+# Input Parameters
+# ------------------------------------------------------------#
+Parameters:
+  SystemName:
+    Description: Please type SystemName
+    Type: String
+    Default: ProjectName
+  KeyName:
+    Description: Select Key Pair
+    Type: "AWS::EC2::KeyPair::KeyName"
+    #Default: "aws-keypair"
+  Ec2ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  Ec2ImageIdArm64:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2
+  CPUArch:
+    Description: Select CPU Architecture type(x86 or Arm)
+    Type: String
+    Default: x86
+    AllowedValues:
+    - x86
+    - Arm
+  InstanceSize:
+    Description: Select instance Size(nano < micro < small)
+    Type: String
+    Default: nano
+    AllowedValues:
+    - nano
+    - micro
+    - small
+  CidrBlock:
+    Description: Please type the CidrBlock.
+    Type: String
+    Default: 192.168.0.0/16
+  DbRootPassword:
+    #NoEcho: true
+    Description: MariaDB Root Password
+    Type: String
+    Default: 'rootpass'
+  WPDbName:
+    #NoEcho: true
+    Description: WordPress DB DatabaseName
+    Type: String
+    Default: wordpress_db
+  WPDbUser:
+    #NoEcho: true
+    Description: WordPress DB User
+    Type: String
+    Default: wordpress_user
+  WPDbPassword:
+    #NoEcho: true
+    Description: WordPress DB Password
+    Type: String
+    Default: 'WPDbpass'
+
+Resources:
+  # ------------------------------------------------------------#
+  #  VPC
+  # ------------------------------------------------------------#
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Sub ${CidrBlock}
+      InstanceTenancy: default
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value: !Sub ${SystemName}-VPC
+
+  # ------------------------------------------------------------#
+  #  Internet Gateway
+  # ------------------------------------------------------------#
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${SystemName}-InternetGateway
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # ------------------------------------------------------------#
+  #  Route Table
+  # ------------------------------------------------------------#
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachGateway
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${SystemName}-RouteTable
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # ------------------------------------------------------------#
+  #  Public Sunbet A
+  # ------------------------------------------------------------#
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: AttachGateway
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 4, 8 ]]
+      MapPublicIpOnLaunch: 'true'
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: !Sub ${SystemName}-PublicSubnetA
+  PublicRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref RouteTable
+
+
+  # ------------------------------------------------------------#
+  #  EC2 Security Group
+  # ------------------------------------------------------------#
+  WebSG1:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${SystemName}-security-group
+      GroupDescription: Allow SSH from Internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # ssh
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        # HTTP
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${SystemName}-security-group
+
+  # ------------------------------------------------------------#
+  #  EC2
+  # ------------------------------------------------------------#
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+      ImageId: !If [IsCPUArch,!Ref Ec2ImageId, !Ref Ec2ImageIdArm64]
+      InstanceInitiatedShutdownBehavior: 'stop'
+      InstanceType: !FindInMap [SizeMap, !Ref CPUArch, !Ref InstanceSize]
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref WebSG1
+      SubnetId: !Ref PublicSubnetA
+      Tenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub ${SystemName}-WebServer
+      UserData: !Base64
+          Fn::Sub: |
+            #! /bin/bash
+            #Change these values and keep in safe place
+            db_root_password=${DbRootPassword}
+            db_name=${WPDbName}
+            db_username=${WPDbUser}
+            db_user_password=${WPDbPassword}
+
+            yum update -y
+            #amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+            amazon-linux-extras enable php7.4
+            amazon-linux-extras install -y php7.4
+            #install apache server,Mariadb
+            yum install -y httpd mariadb-server
+
+            systemctl start httpd
+            systemctl enable httpd
+            systemctl start mariadb
+            systemctl enable mariadb
+
+            # Change OWNER and permission of directory /var/www
+            useradd -m -U ec2-user
+            usermod -a -G apache ec2-user
+            echo "ec2-user ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/90-cloud-init-users
+            chown -R ec2-user:apache /var/www
+            find /var/www -type d -exec chmod 2775 {} \;
+            find /var/www -type f -exec chmod 0664 {} \;
+
+            # Download wordpress package and extract
+            #wget https://wordpress.org/latest.tar.gz
+            #tar -xzf latest.tar.gz
+            wget https://ja.wordpress.org/latest-ja.tar.gz
+            tar -xzvf latest-ja.tar.gz
+
+            # change root password to db_root_password
+            mysql -uroot -e "SET PASSWORD FOR root@localhost = PASSWORD('$db_root_password');FLUSH PRIVILEGES;"
+
+            # DELETE user
+            mysql -p"$db_root_password" -e "DELETE FROM mysql.user WHERE User='';"
+            mysql -p"$db_root_password" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+            #mysql -p"$db_root_password" -e "SELECT host,user,password FROM mysql.user;"
+
+            # Create database user and grant privileges
+            mysql -u root -p"$db_root_password" -e "GRANT ALL PRIVILEGES ON *.* TO '$db_username'@'localhost' IDENTIFIED BY '$db_user_password';FLUSH PRIVILEGES;"
+
+            # Create database
+            mysql -u $db_username -p"$db_user_password" -e "CREATE DATABASE \`$db_name\`;"
+
+            # Create wordpress configuration file and update database value
+            mkdir /var/www/html/blog
+            cp -r wordpress/* /var/www/html/blog/
+            cp /var/www/html/blog/wp-config-sample.php /var/www/html/blog/wp-config.php
+            cd /var/www/html/blog
+
+            # modify wp-config.pht
+            sed -i "s/database_name_here/$db_name/g" wp-config.php
+            sed -i "s/username_here/$db_username/g" wp-config.php
+            sed -i "s/password_here/$db_user_password/g" wp-config.php
+
+            cat <<EOF >>/var/www/html/blog/wp-config.php
+
+            define( 'FS_METHOD', 'direct' );
+            define('WP_MEMORY_LIMIT', '256M');
+            EOF
+
+            # Change permission of /var/www/html/blog/
+            chown -R ec2-user:apache /var/www/html/blog
+            chmod -R 774 /var/www/html/blog
+
+            # enable .htaccess files in Apache config using sed command
+            sed -i '/<Directory "\/var\/www\/html">/,/<\/Directory>/ s/AllowOverride None/AllowOverride all/' /etc/httpd/conf/httpd.conf
+
+
+# ------------------------------------------------------------#
+# Output Parameters
+# ------------------------------------------------------------#
+Outputs:
+  VPC:
+    Description: The ID of the VPC
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCID"
+  PublicSubnetA:
+    Description: The ID of the PublicSubnet
+    Value: !Ref PublicSubnetA
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet"
+  EC2Instance:
+    Description: The ID of the EC2Instance
+    Value: !Ref EC2Instance
+    Export:
+      Name: !Sub "${AWS::StackName}-EC2Instance"
+  DbRootPassword:
+    Description: MariaDB Root Password
+    Value: !Ref DbRootPassword
+    Export:
+      Name: !Sub "${AWS::StackName}-DbRootPassword"
+  WPDbName:
+    Description: WordPress DB DatabaseName
+    Value: !Ref WPDbName
+    Export:
+      Name: !Sub "${AWS::StackName}-WPDbName"
+  WPDbUser:
+    Description: WordPress DB User
+    Value: !Ref WPDbUser
+    Export:
+      Name: !Sub "${AWS::StackName}-WPDbUser"
+  WPDbPassword:
+    Description: WordPress DB Password
+    Value: !Ref WPDbPassword
+    Export:
+      Name: !Sub "${AWS::StackName}-WPDbPassword"
