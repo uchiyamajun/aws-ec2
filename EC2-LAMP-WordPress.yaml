@@ -261,8 +261,8 @@ Resources:
       UserData:
         Fn::If:
           - IsUSERdata
-          - Fn::Base64: |-
-            #Fn::Sub: |
+          - Fn::Base64:
+            Fn::Sub: |
             #! /bin/bash
             #Change these values and keep in safe place
             db_root_password=${DbRootPassword}
