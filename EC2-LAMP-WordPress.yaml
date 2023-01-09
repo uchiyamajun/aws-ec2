@@ -11,12 +11,12 @@ Metadata:
     ParameterGroups:
      -
       Label:
-          default: "SystemName"
+          default: "SystemName Configuration"
       Parameters:
           - SystemName
      -
       Label:
-          default: "EC2Instance Configuration"
+          default: "EC2 Instance Configuration"
       Parameters:
           - KeyName
           - Ec2ImageId
@@ -34,28 +34,30 @@ Metadata:
           - WPDbUser
           - WPDbPassword
     ParameterLabels:
+      SystemName:
+        default: "Input"
       KeyName:
-        default: "KeyPairName"
+        default: "Chose KeyPairName"
       Ec2ImageId:
-        default: "EC2 AMI"
+        default: "EC2 AMI(x86)"
       Ec2ImageIdArm64:
         default: "EC2 AMI(Arm)"
       CPUArch:
-        default: "EC2 CPU Architecture type"
+        default: "Chose EC2 CPU Architecture type"
       InstanceSize:
-        default: "EC2 Instancesize"
+        default: "Chose EC2 Instance Size"
       CidrBlock:
-        default: "EC2 CidrBlock"
+        default: "Input VPC CIDR"
       USERdataParam:
-        default: "EC2 Userdata"
+        default: "Chose install LAMP+WordPress"
       DbRootPassword:
-        default: "WordPress DbRootPassword"
+        default: "Input"
       WPDbName:
-        default: "WordPress DBName"
+        default: "Input"
       WPDbUser:
-        default: "WordPress DbUser"
+        default: "Input"
       WPDbPassword:
-        default: "WordPress DbPassword"
+        default: "Input"
 # ------------------------------------------------------------#
 # Mappings Parameters
 # ------------------------------------------------------------#
@@ -79,28 +81,30 @@ Conditions:
 # ------------------------------------------------------------#
 Parameters:
   SystemName:
-    Description: Please type SystemName
+    Description: System Name
     Type: String
     Default: ProjectName
   KeyName:
-    Description: Select Key Pair
+    Description: KeyName
     Type: "AWS::EC2::KeyPair::KeyName"
     #Default: "aws-keypair"
   Ec2ImageId:
+    Description: latest AIM
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
   Ec2ImageIdArm64:
+    Description: latest AIM
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2
   CPUArch:
-    Description: Select CPU Architecture type(x86 or Arm)
+    Description: x86=>t3 instance or Arm=>t4g instance
     Type: String
     Default: x86
     AllowedValues:
       - x86
       - Arm
   InstanceSize:
-    Description: Select instance Size(nano < micro < small)
+    Description: instance Size(nano < micro < small)
     Type: String
     Default: nano
     AllowedValues:
@@ -108,11 +112,11 @@ Parameters:
       - micro
       - small
   CidrBlock:
-    Description: Please type the CidrBlock.
+    Description: CidrBlock
     Type: String
     Default: 192.168.0.0/16
   USERdataParam:
-    Description: Choose to install LAMP,WordPress
+    Description: install=>LAMP+WordPress
     Type: String
     Default: "install"
     AllowedValues:
@@ -125,17 +129,17 @@ Parameters:
     Default: 'rootpass'
   WPDbName:
     #NoEcho: true
-    Description: WordPress DB DatabaseName
+    Description: WordPress DB Name
     Type: String
     Default: wordpress_db
   WPDbUser:
     #NoEcho: true
-    Description: WordPress DB User
+    Description: WordPress DB UserName
     Type: String
     Default: wordpress_user
   WPDbPassword:
     #NoEcho: true
-    Description: WordPress DB Password
+    Description: WordPress DB UserPassword
     Type: String
     Default: 'WPDbpass'
 
